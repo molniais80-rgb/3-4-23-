@@ -1,4 +1,4 @@
-import asyncio, random, logging, aiosqlite, time
+import asyncio, random, logging, aiosqlite, time, os
 from datetime import datetime, timedelta
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
@@ -10,19 +10,24 @@ from telethon.errors import FloodWaitError, UsernameNotOccupiedError, ChannelPri
 from telethon.tl.functions.messages import ReportRequest
 from telethon.tl.types import InputReportReasonSpam
 
+# Создаем папку data, если ее нет (решает проблему с Railway)
+os.makedirs("data", exist_ok=True)
+
 # --- НАСТРОЙКИ ---
-BOT_TOKEN = "9095309503:AAF4C9JBKiW6uwEzypXJB9RNjjXEcGbACEM"
-API_ID = 39846788
-API_HASH = "269a368139d68b036b46377f36813bbb"
-SESSION = "reporter"
-OWNER_USERNAME = "fsyovz" # Главный хозяин
+# Секреты берем из переменных окружения Railway (Variables)
+BOT_TOKEN = os.getenv("BOT_TOKEN", "9095309503:AAF4C9JBKiW6uwEzypXJB9RNjjXEcGbACEM")
+API_ID = int(os.getenv("API_ID", "39846788"))
+API_HASH = os.getenv("API_HASH", "269a368139d68b036b46377f36813bbb")
+OWNER_USERNAME = os.getenv("OWNER_USERNAME", "fsyovz")
+
+SESSION = "data/reporter"
+DB_NAME = "data/users.db"
 
 DELAY_MIN, DELAY_MAX = 10, 20
 MAX_REPORTS = 150
-DB_NAME = "users.db"
 
 # Цены (в звездах)
-PRICE_DAY = 100
+PRICE_DAY = 85
 PRICE_WEEK = 250
 PRICE_MONTH = 500
 PRICE_ONE_TIME = 15
@@ -96,10 +101,10 @@ def main_menu(is_admin=False):
 
 def buy_menu():
     kb = [
-        [InlineKeyboardButton(text=f"1 разовый запуск — {PRICE_ONE_TIME} ⭐️", callback_data="buy_onetime")],
-[06.11.2026 19:38] оля: [06.11.2026 19:32] оля: [InlineKeyboardButton(text=f"Подписка на 1 день — {PRICE_DAY} ⭐️", callback_data="buy_day")],
-        [InlineKeyboardButton(text=f"Подписка на 7 дней — {PRICE_WEEK} ⭐️", callback_data="buy_week")],
-        [InlineKeyboardButton(text=f"Подписка на 30 дней — {PRICE_MONTH} ⭐️", callback_data="buy_month")],
+        [InlineKeyboardButton(text=f"1 разовый запуск — {PRICE_ONE_TIME} ⭐", callback_data="buy_onetime")],
+        [InlineKeyboardButton(text=f"Подписка на 1 день — {PRICE_DAY} ⭐", callback_data="buy_day")],
+        [InlineKeyboardButton(text=f"Подписка на 7 дней — {PRICE_WEEK} ⭐", callback_data="buy_week")],
+        [InlineKeyboardButton(text=f"Подписка на 30 дней — {PRICE_MONTH} ⭐", callback_data="buy_month")],
         [InlineKeyboardButton(text="🔙 Назад", callback_data="back_main")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=kb)
@@ -166,7 +171,7 @@ async def success_payment(msg: types.Message, state: FSMContext):
 
     if payload == "onetime":
         await update_user(user_id, one_time_paid=1)
-        await msg.answer("✅ Оплата 15 ⭐️ получена! Введи юзернейм цели (без @):")
+        await msg.answer("✅ Оплата 15 ⭐ получена! Введи юзернейм цели (без @):")
         await state.set_state(Form.waiting_username)
     else:
         days = 1 if payload == "sub_1" else (7 if payload == "sub_7" else 30)
@@ -181,15 +186,15 @@ async def success_payment(msg: types.Message, state: FSMContext):
 @dp.callback_query(F.data == "report")
 async def start_report(cb: types.CallbackQuery, state: FSMContext):
     user_id = cb.from_user.id
-[06.11.2026 19:38] оля: u = await get_user(user_id)
+    u = await get_user(user_id)
     now = time.time()
     
     has_sub = u and u[3] > now
     has_one_time = u and u[4] == 1
-[06.11.2026 19:32] оля: if has_sub or has_one_time or await is_owner_or_admin(user_id, cb.from_user.username):
+
+    if has_sub or has_one_time or await is_owner_or_admin(user_id, cb.from_user.username):
         await cb.message.answer("Введите юзернейм цели (без @):")
         await state.set_state(Form.waiting_username)
-        # Сбрасываем разовую оплату, если нет подписки
         if not has_sub:
             await update_user(user_id, one_time_paid=0)
     else:
@@ -268,9 +273,10 @@ async def adm_add_admin(cb: types.CallbackQuery, state: FSMContext):
     await cb.message.answer("Введи @username пользователя, которого нужно сделать админом:")
     await state.set_state(Form.waiting_admin_username)
     await cb.answer()
-[06.11.2026 19:38] оля: @dp.message(Form.waiting_admin_username)
+
+@dp.message(Form.waiting_admin_username)
 async def process_add_admin(msg: types.Message, state: FSMContext):
-[06.11.2026 19:32] оля: target_username = msg.text.strip().lstrip("@")
+    target_username = msg.text.strip().lstrip("@")
     target = await get_user_by_username(target_username)
     if not target:
         await msg.answer("Пользователь не найден в базе. Пусть он напишет /start."); return
@@ -284,5 +290,5 @@ async def main():
     bot = Bot(BOT_TOKEN)
     await dp.start_polling(bot)
 
-if name == "main":
+if __name__ == "__main__":
     asyncio.run(main())
