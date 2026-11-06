@@ -1,4 +1,4 @@
-[06.11.2026 19:38] оля: [06.11.2026 19:32] оля: import asyncio, random, logging, aiosqlite, time
+import asyncio, random, logging, aiosqlite, time
 from datetime import datetime, timedelta
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
